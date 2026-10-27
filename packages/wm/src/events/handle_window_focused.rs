@@ -71,7 +71,9 @@ pub fn handle_window_focused(
     // Handle focus events from windows on hidden workspaces. For example,
     // if Discord is forcefully shown by the OS when it's on a hidden
     // workspace, switch focus to Discord's workspace.
-    if window.display_state() == DisplayState::Hidden {
+    if window.display_state() == DisplayState::Hidden
+      && !workspace.is_displayed()
+    {
       info!("Focusing off-screen window: {window}");
 
       focus_workspace(
@@ -83,6 +85,13 @@ pub fn handle_window_focused(
 
     // Update the WM's focus state.
     set_focused_descendant(&window.clone().into(), None);
+
+    // Manually focusing an inactive tiling window makes it the active
+    // window, so all tiling windows need to be redrawn to update their
+    // visibility.
+    state
+      .pending_sync
+      .queue_containers_to_redraw(workspace.tiling_windows());
 
     // Run window rules for focus events.
     run_window_rules(

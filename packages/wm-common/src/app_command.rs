@@ -344,6 +344,14 @@ pub struct InvokeFocusCommand {
 
   #[clap(long)]
   pub recent_workspace: bool,
+
+  /// Focus the next tiling window in the workspace's window list.
+  #[clap(long)]
+  pub next_window: bool,
+
+  /// Focus the previous tiling window in the workspace's window list.
+  #[clap(long)]
+  pub prev_window: bool,
 }
 
 #[derive(Args, Clone, Debug, PartialEq, Serialize)]
@@ -431,4 +439,54 @@ pub struct InvokeUpdateWorkspaceConfig {
 
   #[clap(long)]
   pub keep_alive: Option<bool>,
+}
+
+#[cfg(test)]
+mod tests {
+  use clap::Parser;
+
+  use super::{InvokeCommand, InvokeFocusCommand};
+
+  #[test]
+  fn parses_next_window_focus() {
+    let command =
+      InvokeCommand::try_parse_from(["", "focus", "--next-window"])
+        .unwrap();
+
+    assert_eq!(
+      command,
+      InvokeCommand::Focus(InvokeFocusCommand {
+        direction: None,
+        container_id: None,
+        workspace_in_direction: None,
+        workspace: None,
+        monitor: None,
+        next_active_workspace: false,
+        prev_active_workspace: false,
+        next_workspace: false,
+        prev_workspace: false,
+        next_active_workspace_on_monitor: false,
+        prev_active_workspace_on_monitor: false,
+        recent_workspace: false,
+        next_window: true,
+        prev_window: false,
+      })
+    );
+  }
+
+  #[test]
+  fn parses_previous_window_focus() {
+    let command =
+      InvokeCommand::try_parse_from(["", "focus", "--prev-window"])
+        .unwrap();
+
+    assert!(matches!(
+      command,
+      InvokeCommand::Focus(InvokeFocusCommand {
+        prev_window: true,
+        next_window: false,
+        ..
+      })
+    ));
+  }
 }

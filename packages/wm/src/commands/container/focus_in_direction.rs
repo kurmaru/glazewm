@@ -1,10 +1,11 @@
 use anyhow::Context;
-use wm_common::{TilingDirection, WindowState};
+use wm_common::WindowState;
 use wm_platform::Direction;
 
 use super::set_focused_descendant;
 use crate::{
-  models::{Container, TilingContainer},
+  commands::window::focus_tiling_window,
+  models::Container,
   traits::{CommonGetters, TilingDirectionGetters, WindowGetters},
   wm_state::WmState,
 };
@@ -14,15 +15,26 @@ pub fn focus_in_direction(
   direction: &Direction,
   state: &mut WmState,
 ) -> anyhow::Result<()> {
+  // Tiling windows in the single-window layout all occupy the same rect,
+  // so directional focus navigates the workspace's window list instead of
+  // its geometry. Up/left goes to the previous window and down/right goes
+  // to the next window.
+  if origin_container.is_tiling_window() {
+    let offset = match direction {
+      Direction::Up | Direction::Left => -1,
+      _ => 1,
+    };
+
+    let workspace = origin_container
+      .workspace()
+      .context("Tiling window has no workspace.")?;
+
+    focus_tiling_window(&workspace, offset, state);
+
+    return Ok(());
+  }
+
   let focus_target = match origin_container {
-    Container::TilingWindow(_) => {
-      // If a suitable focus target isn't found in the current workspace,
-      // attempt to find a workspace in the given direction.
-      tiling_focus_target(origin_container, direction)?.map_or_else(
-        || workspace_focus_target(origin_container, direction, state),
-        |container| Ok(Some(container)),
-      )?
-    }
     Container::NonTilingWindow(ref non_tiling_window) => {
       match non_tiling_window.state() {
         WindowState::Floating(_) => {
@@ -75,56 +87,6 @@ fn floating_focus_target(
     // Cannot focus vertically from a floating window.
     _ => None,
   }
-}
-
-/// Gets a focus target within the current workspace. Traverse upwards from
-/// the origin container to find an adjacent container that can be focused.
-fn tiling_focus_target(
-  origin_container: &Container,
-  direction: &Direction,
-) -> anyhow::Result<Option<Container>> {
-  let tiling_direction = TilingDirection::from_direction(direction);
-  let mut origin_or_ancestor = origin_container.clone();
-
-  // Traverse upwards from the focused container. Stop searching when a
-  // workspace is encountered.
-  while !origin_or_ancestor.is_workspace() {
-    let parent = origin_or_ancestor
-      .parent()
-      .and_then(|parent| parent.as_direction_container().ok())
-      .context("No direction container.")?;
-
-    // Skip if the tiling direction doesn't match.
-    if parent.tiling_direction() != tiling_direction {
-      origin_or_ancestor = parent.into();
-      continue;
-    }
-
-    // Get the next/prev tiling sibling depending on the tiling direction.
-    let focus_target = match direction {
-      Direction::Up | Direction::Left => origin_or_ancestor
-        .prev_siblings()
-        .find_map(|c| c.as_tiling_container().ok()),
-      _ => origin_or_ancestor
-        .next_siblings()
-        .find_map(|c| c.as_tiling_container().ok()),
-    };
-
-    match focus_target {
-      Some(target) => {
-        // Return once a suitable focus target is found.
-        return Ok(match target {
-          TilingContainer::TilingWindow(_) => Some(target.into()),
-          TilingContainer::Split(split) => split
-            .descendant_in_direction(&direction.inverse())
-            .map(Into::into),
-        });
-      }
-      None => origin_or_ancestor = parent.into(),
-    }
-  }
-
-  Ok(None)
 }
 
 /// Gets a focus target outside of the current workspace in the given

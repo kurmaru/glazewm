@@ -11,7 +11,10 @@ use wm_platform::NativeWindowWindowsExt;
 use wm_platform::{CornerStyle, OpacityValue};
 use wm_platform::{Rect, WindowZOrder};
 
+#[cfg(target_os = "windows")]
+use crate::commands::window::animate_pending_window_switch;
 use crate::{
+  commands::window::should_show_window,
   models::{Container, WindowContainer},
   traits::{CommonGetters, PositionGetters, WindowGetters},
   user_config::UserConfig,
@@ -24,6 +27,10 @@ pub fn platform_sync(
 ) -> anyhow::Result<()> {
   let focused_container =
     state.focused_container().context("No focused container.")?;
+
+  // Animate window switches before applying focus and visibility changes.
+  #[cfg(target_os = "windows")]
+  animate_pending_window_switch(state);
 
   if state.pending_sync.needs_focus_update() {
     sync_focus(&focused_container, state)?;
@@ -74,6 +81,7 @@ pub fn platform_sync(
   }
 
   state.pending_sync.clear();
+  state.update_active_tiling_window_snapshot();
 
   Ok(())
 }
@@ -266,10 +274,13 @@ fn redraw_containers(
       continue;
     }
 
-    // Transition display state depending on whether window will be
-    // shown or hidden.
+    // Transition display state depending on whether the window should be
+    // shown on its workspace. In the single-window layout, only the active
+    // tiling window is shown.
+    let should_show = should_show_window(window, &workspace);
+
     window.set_display_state(
-      match (window.display_state(), workspace.is_displayed()) {
+      match (window.display_state(), should_show) {
         (DisplayState::Hidden | DisplayState::Hiding, true) => {
           DisplayState::Showing
         }

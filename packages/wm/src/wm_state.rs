@@ -1,4 +1,4 @@
-use std::time::Instant;
+use std::{collections::HashMap, time::Instant};
 
 use anyhow::Context;
 use tokio::sync::mpsc::{self};
@@ -20,7 +20,7 @@ use crate::{
   },
   models::{
     Container, Monitor, NativeMonitorProperties, RootContainer,
-    WindowContainer, Workspace, WorkspaceTarget,
+    TilingWindow, WindowContainer, Workspace, WorkspaceTarget,
   },
   pending_sync::PendingSync,
   traits::{CommonGetters, PositionGetters, WindowGetters},
@@ -48,6 +48,12 @@ pub struct WmState {
   /// effects from the previous window rather than all windows when focus
   /// changes.
   pub prev_effects_window: Option<WindowContainer>,
+
+  /// Active tiling window per workspace as of the last platform sync.
+  ///
+  /// Used to detect switches in the active tiling window so that the
+  /// single-window layout can animate the outgoing and incoming windows.
+  pub prev_active_tiling_windows: HashMap<Uuid, TilingWindow>,
 
   /// Time since a previously focused window was unmanaged or minimized.
   ///
@@ -88,6 +94,7 @@ impl WmState {
       dispatcher,
       pending_sync: PendingSync::default(),
       prev_effects_window: None,
+      prev_active_tiling_windows: HashMap::new(),
       recent_workspace_name: None,
       unmanaged_or_minimized_timestamp: None,
       binding_modes: Vec::new(),
@@ -176,6 +183,21 @@ impl WmState {
       .iter()
       .flat_map(Monitor::workspaces)
       .collect()
+  }
+
+  /// Updates the snapshot of active tiling windows per workspace.
+  ///
+  /// Called after a platform sync so that the next sync can detect a
+  /// window switch and animate it.
+  pub fn update_active_tiling_window_snapshot(&mut self) {
+    self.prev_active_tiling_windows = self
+      .workspaces()
+      .into_iter()
+      .filter_map(|workspace| {
+        let active_tiling_window = workspace.active_tiling_window()?;
+        Some((workspace.id(), active_tiling_window))
+      })
+      .collect();
   }
 
   /// Gets workspaces sorted by their position in the user config.
@@ -697,6 +719,12 @@ impl Drop for WmState {
       // Reset any effects on Windows.
       #[cfg(target_os = "windows")]
       {
+        // Inactive tiling windows are cloaked in the single-window
+        // layout, so they must be uncloaked before being shown.
+        if let Err(err) = window.native().set_cloaked(false) {
+          warn!("Failed to uncloak window: {:?}", err);
+        }
+
         if let Err(err) = window.native().show() {
           warn!("Failed to show window: {:?}", err);
         }

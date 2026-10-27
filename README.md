@@ -34,6 +34,11 @@ GlazeWM lets you easily organize windows and adjust their layout on the fly by u
 - Easy one-click installation
 - Integration with [Zebar](https://github.com/glzr-io/zebar) as a status bar
 
+> **Fork note:** This fork uses a Niri-inspired single-window layout where
+> only one tiling window is visible per workspace. See
+> [SINGLE_WINDOW_LAYOUT.md](SINGLE_WINDOW_LAYOUT.md) for behavior,
+> keybindings, and limitations.
+
 ## Installation
 
 **The latest version of GlazeWM is downloadable via [releases](https://github.com/glzr-io/GlazeWM/releases).** Zebar can optionally be installed as well via a checkbox during installation.

@@ -6,8 +6,11 @@ mod resize_window;
 mod run_window_rules;
 mod set_window_position;
 mod set_window_size;
+mod single_window_layout;
 mod unmanage_window;
 mod update_window_state;
+#[cfg(target_os = "windows")]
+mod window_switch_animation;
 
 pub use ignore_window::*;
 pub use manage_window::*;
@@ -17,5 +20,8 @@ pub use resize_window::*;
 pub use run_window_rules::*;
 pub use set_window_position::*;
 pub use set_window_size::*;
+pub use single_window_layout::*;
 pub use unmanage_window::*;
 pub use update_window_state::*;
+#[cfg(target_os = "windows")]
+pub use window_switch_animation::*;

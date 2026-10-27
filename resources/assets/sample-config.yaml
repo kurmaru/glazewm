@@ -175,7 +175,9 @@ binding_modes:
         bindings: ['escape', 'enter', 'alt+r']
 
 keybindings:
-  # Shift focus in a given direction.
+  # Shift focus in a given direction. In this single-window layout, tiling
+  # windows all occupy the same area, so left/up focus the previous window
+  # and right/down focus the next window.
   - commands: ['focus --direction left']
     bindings: ['alt+h', 'alt+left']
   - commands: ['focus --direction right']
@@ -185,15 +187,20 @@ keybindings:
   - commands: ['focus --direction down']
     bindings: ['alt+j', 'alt+down']
 
-  # Move focused window in a given direction.
+  # Switch to the previous/next window in the workspace's window list.
+  # Navigation wraps around at either end of the list.
+  - commands: ['focus --prev-window']
+    bindings: ['alt+page_up']
+  - commands: ['focus --next-window']
+    bindings: ['alt+page_down']
+
+  # Move the focused window within the workspace's window list. Left moves
+  # it towards the front of the list and right moves it towards the back.
+  # Vertical movement has no meaning in a single-window layout.
   - commands: ['move --direction left']
     bindings: ['alt+shift+h', 'alt+shift+left']
   - commands: ['move --direction right']
     bindings: ['alt+shift+l', 'alt+shift+right']
-  - commands: ['move --direction up']
-    bindings: ['alt+shift+k', 'alt+shift+up']
-  - commands: ['move --direction down']
-    bindings: ['alt+shift+j', 'alt+shift+down']
 
   # Resize focused window by a percentage or pixel amount.
   - commands: ['resize --width -2%']

@@ -6,7 +6,7 @@ use crate::{
   commands::container::{
     move_container_within_tree, replace_container, resize_tiling_container,
   },
-  models::{Container, InsertionTarget, WindowContainer},
+  models::{InsertionTarget, WindowContainer},
   traits::{CommonGetters, TilingSizeGetters, WindowGetters},
   user_config::UserConfig,
   wm_state::WmState,
@@ -58,27 +58,20 @@ fn set_tiling(
         .is_some_and(|workspace| workspace.is_displayed())
     });
 
-  // Get the position in the tree to insert the new tiling window. This
-  // will be the window's previous tiling position if it has one, or
-  // instead beside the last focused tiling window in the workspace.
-  let (target_parent, target_index) = insertion_target
+  // Get the position in the tree to insert the new tiling window. Tiling
+  // windows are always direct children of the workspace in the
+  // single-window layout. Restore the window's previous tiling index if it
+  // still points into the same workspace, otherwise append it.
+  let target_index = insertion_target
     .as_ref()
-    .map(|insertion_target| {
-      (
-        insertion_target.target_parent.clone(),
-        insertion_target.target_index,
-      )
+    .filter(|insertion_target| {
+      insertion_target.target_parent.id() == workspace.id()
     })
-    // Fallback to the last focused tiling window within the workspace.
-    .or_else(|| {
-      let focused_window = workspace
-        .descendant_focus_order()
-        .find(Container::is_tiling_window)?;
+    .map_or(workspace.child_count(), |insertion_target| {
+      insertion_target.target_index
+    });
 
-      Some((focused_window.parent()?, focused_window.index() + 1))
-    })
-    // Default to inserting at the end of the workspace.
-    .unwrap_or((workspace.clone().into(), workspace.child_count()));
+  let target_parent = workspace.clone().into();
 
   let tiling_window = window.to_tiling(config.value.gaps.clone());
 

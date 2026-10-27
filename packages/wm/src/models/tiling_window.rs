@@ -7,14 +7,13 @@ use std::{
 use anyhow::Context;
 use uuid::Uuid;
 use wm_common::{
-  ActiveDrag, ContainerDto, DisplayState, GapsConfig, TilingDirection,
-  WindowDto, WindowRuleConfig, WindowState,
+  ActiveDrag, ContainerDto, DisplayState, GapsConfig, WindowDto,
+  WindowRuleConfig, WindowState,
 };
 use wm_platform::{NativeWindow, Rect, RectDelta};
 
 use crate::{
-  impl_common_getters, impl_container_debug,
-  impl_position_getters_as_resizable, impl_tiling_size_getters,
+  impl_common_getters, impl_container_debug, impl_tiling_size_getters,
   impl_window_getters,
   models::{
     Container, DirectionContainer, InsertionTarget,
@@ -22,8 +21,7 @@ use crate::{
     WindowContainer,
   },
   traits::{
-    CommonGetters, PositionGetters, TilingDirectionGetters,
-    TilingSizeGetters, WindowGetters,
+    CommonGetters, PositionGetters, TilingSizeGetters, WindowGetters,
   },
 };
 
@@ -138,5 +136,18 @@ impl TilingWindow {
 impl_container_debug!(TilingWindow);
 impl_common_getters!(TilingWindow);
 impl_tiling_size_getters!(TilingWindow);
-impl_position_getters_as_resizable!(TilingWindow);
 impl_window_getters!(TilingWindow);
+
+impl PositionGetters for TilingWindow {
+  /// Gets the bounds of the workspace's tiled area.
+  ///
+  /// In the single-window layout, every tiled window occupies the same
+  /// tiled area. Only the active tiling window is shown; inactive tiling
+  /// windows are hidden by `platform_sync`.
+  fn to_rect(&self) -> anyhow::Result<Rect> {
+    self
+      .workspace()
+      .context("Tiling window has no parent workspace.")?
+      .to_rect()
+  }
+}

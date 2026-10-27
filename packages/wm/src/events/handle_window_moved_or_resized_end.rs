@@ -1,22 +1,17 @@
 use anyhow::Context;
-use wm_common::{
-  try_warn, FullscreenStateConfig, TilingDirection, WindowState,
-};
+use wm_common::{try_warn, FullscreenStateConfig, WindowState};
 use wm_platform::{LengthValue, Point, Rect};
 
 use crate::{
   commands::{
-    container::{move_container_within_tree, wrap_in_split_container},
+    container::move_container_within_tree,
     window::{set_window_size, update_window_state},
   },
   events::update_floating_window_position,
   models::{
-    DirectionContainer, NonTilingWindow, SplitContainer, TilingContainer,
-    WindowContainer,
+    DirectionContainer, NonTilingWindow, TilingContainer, WindowContainer,
   },
-  traits::{
-    CommonGetters, PositionGetters, TilingDirectionGetters, WindowGetters,
-  },
+  traits::{CommonGetters, PositionGetters, WindowGetters},
   user_config::UserConfig,
   wm_state::WmState,
 };
@@ -219,7 +214,6 @@ fn drop_as_tiling_window(
     })?
     .context("No nearest container.")?;
 
-  let tiling_direction = target_parent.tiling_direction();
   let drop_position =
     drop_position(&mouse_pos, &nearest_container.to_rect()?);
 
@@ -230,54 +224,20 @@ fn drop_as_tiling_window(
     config,
   )?;
 
-  let should_split = nearest_container.is_tiling_window()
-    && match tiling_direction {
-      TilingDirection::Horizontal => {
-        drop_position == DropPosition::Top
-          || drop_position == DropPosition::Bottom
-      }
-      TilingDirection::Vertical => {
-        drop_position == DropPosition::Left
-          || drop_position == DropPosition::Right
-      }
-    };
+  // The single-window layout never creates split containers. Insert the
+  // window into the target parent's window list instead, so that the
+  // workspace's tiling windows remain ordered direct children.
+  let target_index = match drop_position {
+    DropPosition::Top | DropPosition::Left => nearest_container.index(),
+    _ => nearest_container.index() + 1,
+  };
 
-  if should_split {
-    let split_container = SplitContainer::new(
-      tiling_direction.inverse(),
-      config.value.gaps.clone(),
-    );
-
-    wrap_in_split_container(
-      &split_container,
-      &target_parent.clone().into(),
-      &[nearest_container],
-    )?;
-
-    let target_index = match drop_position {
-      DropPosition::Top | DropPosition::Left => 0,
-      _ => 1,
-    };
-
-    move_container_within_tree(
-      &moved_window.clone().into(),
-      &split_container.into(),
-      target_index,
-      state,
-    )?;
-  } else {
-    let target_index = match drop_position {
-      DropPosition::Top | DropPosition::Left => nearest_container.index(),
-      _ => nearest_container.index() + 1,
-    };
-
-    move_container_within_tree(
-      &moved_window.clone().into(),
-      &target_parent.clone().into(),
-      target_index,
-      state,
-    )?;
-  }
+  move_container_within_tree(
+    &moved_window.clone().into(),
+    &target_parent.clone().into(),
+    target_index,
+    state,
+  )?;
 
   state.pending_sync.queue_container_to_redraw(target_parent);
 

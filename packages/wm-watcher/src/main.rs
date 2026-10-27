@@ -41,6 +41,10 @@ async fn main() -> anyhow::Result<()> {
         managed_handles.into_iter().map(NativeWindow::from_handle);
 
       for window in managed_windows {
+        // Inactive tiling windows are cloaked in the single-window
+        // layout, so they must be uncloaked before being shown.
+        let _ = window.set_cloaked(false);
+
         if let Err(err) = window.show() {
           tracing::warn!("Failed to show window: {:?}", err);
         }

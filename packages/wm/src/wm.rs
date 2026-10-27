@@ -26,9 +26,10 @@ use crate::{
     },
     monitor::focus_monitor,
     window::{
-      ignore_window, move_window_in_direction, move_window_to_workspace,
-      resize_window, set_window_position, set_window_size,
-      update_window_state, WindowPositionTarget,
+      focus_next_window, focus_previous_window, ignore_window,
+      move_window_in_direction, move_window_to_workspace, resize_window,
+      set_window_position, set_window_size, update_window_state,
+      WindowPositionTarget,
     },
     workspace::{
       focus_workspace, move_workspace_in_direction,
@@ -193,7 +194,7 @@ impl WindowManager {
     for command in commands {
       WindowManager::run_command(
         command,
-        current_subject_container.clone(),
+        &current_subject_container,
         state,
         config,
       )?;
@@ -217,7 +218,7 @@ impl WindowManager {
   #[allow(clippy::too_many_lines)]
   pub fn run_command(
     command: &InvokeCommand,
-    subject_container: Container,
+    subject_container: &Container,
     state: &mut WmState,
     config: &mut UserConfig,
   ) -> anyhow::Result<()> {
@@ -265,7 +266,7 @@ impl WindowManager {
       }
       InvokeCommand::Focus(args) => {
         if let Some(direction) = &args.direction {
-          focus_in_direction(&subject_container, direction, state)?;
+          focus_in_direction(subject_container, direction, state)?;
         }
 
         if let Some(direction) = &args.workspace_in_direction {
@@ -310,6 +311,20 @@ impl WindowManager {
 
         if args.recent_workspace {
           focus_workspace(WorkspaceTarget::Recent, state, config)?;
+        }
+
+        if args.next_window {
+          let workspace =
+            subject_container.workspace().context("No workspace.")?;
+
+          focus_next_window(&workspace, state);
+        }
+
+        if args.prev_window {
+          let workspace =
+            subject_container.workspace().context("No workspace.")?;
+
+          focus_previous_window(&workspace, state);
         }
 
         if args.next_active_workspace_on_monitor {

@@ -170,10 +170,10 @@ fn create_window(
     window_state_to_create(&native_properties, &nearest_monitor, config)?;
 
   // Attach the new window as the first child of the target parent (if
-  // provided), otherwise, add as a sibling of the focused container.
+  // provided), otherwise, add it to the focused workspace's window list.
   let (target_parent, target_index) = match target_parent {
     Some(parent) => (parent, 0),
-    None => insertion_target(&window_state, state)?,
+    None => insertion_target(state)?,
   };
 
   let target_workspace =
@@ -310,17 +310,12 @@ fn window_state_to_create(
 
 /// Gets where to insert a new window in the container tree.
 ///
-/// Rules:
-/// - For non-tiling windows: Always append to the workspace.
-/// - For tiling windows:
-///   1. Try to insert after the focused tiling window if one exists.
-///   2. If a non-tiling window is focused, try to insert after the first
-///      tiling window found.
-///   3. If no tiling windows exist, append to the workspace.
+/// In the single-window layout, every window is appended to the focused
+/// workspace. Tiling windows therefore never create split containers, and
+/// the workspace's children form the ordered window list.
 ///
 /// Returns tuple of (parent container, insertion index).
 fn insertion_target(
-  window_state: &WindowState,
   state: &WmState,
 ) -> anyhow::Result<(Container, usize)> {
   let focused_container =
@@ -329,25 +324,6 @@ fn insertion_target(
   let focused_workspace =
     focused_container.workspace().context("No workspace.")?;
 
-  // For tiling windows, try to find a suitable tiling window to insert
-  // next to.
-  if *window_state == WindowState::Tiling {
-    let sibling = match focused_container {
-      Container::TilingWindow(_) => Some(focused_container),
-      _ => focused_workspace
-        .descendant_focus_order()
-        .find(Container::is_tiling_window),
-    };
-
-    if let Some(sibling) = sibling {
-      return Ok((
-        sibling.parent().context("No parent.")?,
-        sibling.index() + 1,
-      ));
-    }
-  }
-
-  // Default to appending to workspace.
   Ok((
     focused_workspace.clone().into(),
     focused_workspace.child_count(),

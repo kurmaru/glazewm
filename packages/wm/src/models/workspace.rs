@@ -15,7 +15,8 @@ use crate::{
   impl_common_getters, impl_container_debug,
   impl_tiling_direction_getters,
   models::{
-    Container, DirectionContainer, TilingContainer, WindowContainer,
+    Container, DirectionContainer, TilingContainer, TilingWindow,
+    WindowContainer,
   },
   traits::{CommonGetters, PositionGetters, TilingDirectionGetters},
 };
@@ -71,29 +72,52 @@ impl Workspace {
       .is_some_and(|workspace| workspace.id() == self.id())
   }
 
+  /// Tiling windows in the workspace's window list order.
+  ///
+  /// The order follows the container tree from left/top to right/bottom.
+  /// In the single-window layout, this is the order that previous/next
+  /// window navigation traverses.
+  pub fn tiling_windows(&self) -> Vec<TilingWindow> {
+    let mut windows = Vec::new();
+    collect_tiling_windows(&self.children(), &mut windows);
+    windows
+  }
+
+  /// Tiling window that currently occupies the workspace.
+  ///
+  /// This is the most recently focused tiling window. If a floating,
+  /// fullscreen, or minimized window has focus, then the previously active
+  /// tiling window remains the active tiling window.
+  pub fn active_tiling_window(&self) -> Option<TilingWindow> {
+    self
+      .descendant_focus_order()
+      .find_map(|container| container.as_tiling_window().cloned())
+  }
+
+  /// Whether the given window is the workspace's active tiling window.
+  pub fn is_active_tiling_window(&self, window: &TilingWindow) -> bool {
+    self
+      .active_tiling_window()
+      .is_some_and(|active| active.id() == window.id())
+  }
+
   pub fn set_gaps_config(&self, gaps_config: GapsConfig) {
     self.0.borrow_mut().gaps_config = gaps_config;
   }
 
   /// Effective outer gaps for this workspace.
   ///
-  /// Uses `single_window_outer_gap` when the workspace has a single tiling
-  /// window, otherwise falls back to `outer_gap`.
+  /// Uses `single_window_outer_gap` when configured because the
+  /// single-window layout only ever displays one tiling window at a time,
+  /// regardless of how many windows are in the workspace.
   pub fn outer_gaps(&self) -> RectDelta {
-    let is_single_window = self.tiling_children().nth(1).is_none();
-
     let gaps_config = &self.0.borrow().gaps_config;
-    let gaps = if is_single_window {
-      gaps_config
-        .single_window_outer_gap
-        .as_ref()
-        .unwrap_or(&gaps_config.outer_gap)
-    } else {
-      &gaps_config.outer_gap
-    };
 
-    // TODO: Should this be scaled by the monitor's DPI?
-    gaps.clone()
+    gaps_config
+      .single_window_outer_gap
+      .as_ref()
+      .unwrap_or(&gaps_config.outer_gap)
+      .clone()
   }
 
   /// Gets the bounds of a workspace with the given outer gap config.
@@ -159,6 +183,16 @@ impl Workspace {
       .map(CommonGetters::to_dto)
       .try_collect()?;
 
+    let tiling_windows = self.tiling_windows();
+    let active_tiling_window = self.active_tiling_window();
+
+    let active_tiling_window_index =
+      active_tiling_window.as_ref().and_then(|active| {
+        tiling_windows
+          .iter()
+          .position(|window| window.id() == active.id())
+      });
+
     Ok(ContainerDto::Workspace(WorkspaceDto {
       id: self.id(),
       name: config.name,
@@ -173,6 +207,14 @@ impl Workspace {
       x: rect.x(),
       y: rect.y(),
       tiling_direction: self.tiling_direction(),
+      tiling_window_count: tiling_windows.len(),
+      tiling_window_ids: tiling_windows
+        .iter()
+        .map(CommonGetters::id)
+        .collect(),
+      active_tiling_window_index,
+      active_tiling_window_id: active_tiling_window
+        .map(|window| window.id()),
     }))
   }
 }
@@ -184,6 +226,25 @@ impl_tiling_direction_getters!(Workspace);
 impl PositionGetters for Workspace {
   fn to_rect(&self) -> anyhow::Result<Rect> {
     self.workspace_rect_with_gap_config(&self.outer_gaps())
+  }
+}
+
+/// Recursively collects tiling windows in tree order.
+///
+/// Split containers should not normally be created in the single-window
+/// layout, but existing split containers are still traversed in order.
+fn collect_tiling_windows(
+  containers: &VecDeque<Container>,
+  windows: &mut Vec<TilingWindow>,
+) {
+  for container in containers {
+    match container {
+      Container::TilingWindow(window) => windows.push(window.clone()),
+      Container::Split(split) => {
+        collect_tiling_windows(&split.children(), windows);
+      }
+      _ => {}
+    }
   }
 }
 

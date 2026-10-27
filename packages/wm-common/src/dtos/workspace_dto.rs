@@ -23,4 +23,18 @@ pub struct WorkspaceDto {
   pub x: i32,
   pub y: i32,
   pub tiling_direction: TilingDirection,
+
+  /// Number of tiling windows in the workspace's ordered window list.
+  pub tiling_window_count: usize,
+
+  /// Ordered IDs of the workspace's tiling windows.
+  pub tiling_window_ids: Vec<Uuid>,
+
+  /// Zero-based index of the active tiling window, or `None` if the
+  /// workspace has no tiling windows.
+  pub active_tiling_window_index: Option<usize>,
+
+  /// ID of the active tiling window, or `None` if the workspace has no
+  /// tiling windows.
+  pub active_tiling_window_id: Option<Uuid>,
 }

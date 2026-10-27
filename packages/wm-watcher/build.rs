@@ -1,7 +1,9 @@
 use tauri_winres::VersionInfo;
 
 fn main() {
-  if cfg!(not(target_os = "windows")) {
+  // Check the compilation target rather than the host so that the watcher
+  // can be cross-compiled from a non-Windows host.
+  if std::env::var("CARGO_CFG_TARGET_OS").as_deref() != Ok("windows") {
     panic!("wm-watcher is only supported on Windows.");
   }
 

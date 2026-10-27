@@ -1,6 +1,5 @@
 use anyhow::Context;
 use tracing::info;
-use wm_common::WindowState;
 
 use crate::{
   commands::{
@@ -82,32 +81,15 @@ pub fn move_window_to_workspace(
       target_monitor.descendant_focus_order().next()
     };
 
-    let insertion_sibling = target_workspace
-      .descendant_focus_order()
-      .filter_map(|descendant| descendant.as_window_container().ok())
-      .find(|descendant| descendant.state() == WindowState::Tiling);
-
-    // Insert the window into the target workspace.
-    match (window.is_tiling_window(), insertion_sibling.is_some()) {
-      (true, true) => {
-        if let Some(insertion_sibling) = insertion_sibling {
-          move_container_within_tree(
-            &window.clone().into(),
-            &insertion_sibling.clone().parent().context("No parent.")?,
-            insertion_sibling.index() + 1,
-            state,
-          )?;
-        }
-      }
-      _ => {
-        move_container_within_tree(
-          &window.clone().into(),
-          &target_workspace.clone().into(),
-          target_workspace.child_count(),
-          state,
-        )?;
-      }
-    }
+    // Append the window to the target workspace's window list. Appending
+    // (rather than inserting beside another tiling window) preserves the
+    // target workspace's active tiling window.
+    move_container_within_tree(
+      &window.clone().into(),
+      &target_workspace.clone().into(),
+      target_workspace.child_count(),
+      state,
+    )?;
 
     // When moving a focused window within the tree to another workspace,
     // the target workspace will get displayed. If moving the window e.g.
